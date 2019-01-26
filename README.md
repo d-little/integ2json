@@ -1,6 +1,6 @@
 # integ2json
 
-Converts Intersystems Cache integrity check output files from:
+Converts from this:
 ```
 Cache Database Integrity Check on 01/22/2019 at 19:00:01
 System: HOSTNAME  Configuration: CACHE
@@ -22,8 +22,7 @@ Global: GLOBAL2
  Elapsed Time = 0.0 seconds, Completed 01/22/2019 19:00:01
 ```
 
-into this:
-
+To this:
 ```
 {
     "INTEG_ALL_20190122-190001.txt": {
