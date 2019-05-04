@@ -1,0 +1,114 @@
+Cache Database Integrity Check on 01/01/2199 at 00:00:01
+System: MyServerHostname  Configuration: CACHE
+Cache for UNIX (IBM AIX for System Power System-64) 2017.2.1 (Build 801) Wed Dec 6 2017 09:23:33 EST
+
+
+---Directory /database/db1/---
+
+Global: GLOBAL1
+ Top/Bottom Pnt Level: # of blocks=1      8kb (4% full)
+ Data Level:           # of blocks=18      144kb (72% full)
+ Total:                # of blocks=19      152kb (69% full)
+ Elapsed Time = 0.0 seconds, Completed 01/01/2199 19:00:01
+
+Global: GLOBAL2
+ Top/Bottom Pnt Level: # of blocks=1      8kb (0% full)
+ Data Level:           # of blocks=1      8kb (7% full)
+ Total:                # of blocks=2      16kb (3% full)
+ Elapsed Time = 0.0 seconds, Completed 01/01/2199 19:00:01
+
+Global: GLOBAL3
+ Top/Bottom Pnt Level: # of blocks=1      8kb (17% full)
+ Data Level:           # of blocks=170      1,360kb (89% full)
+ Total:                # of blocks=171      1,368kb (89% full)
+ Elapsed Time = 0.2 seconds, Completed 01/01/2199 19:00:01
+
+Global: GLOBAL4
+ Top/Bottom Pnt Level: # of blocks=1      8kb (18% full)
+ Data Level:           # of blocks=110      880kb (72% full)
+ Total:                # of blocks=111      888kb (71% full)
+ Elapsed Time = 0.1 seconds, Completed 01/01/2199 00:01:00
+
+---Total for directory /database/db1/---
+     3,166 Pointer Level blocks          24MB (63% full)
+ 1,134,057 Data Level blocks           8859MB (73% full)
+   295,835 Big String blocks           2311MB (68% full) # = 241,005
+ 1,433,218 Total blocks               11197MB (72% full)
+    61,695 Free blocks                  481MB
+
+Elapsed time = 41.0 seconds 01/01/2199 00:01:00
+
+No Errors were found in this directory.
+
+
+---Directory /database/db2/---
+
+Global: db2_GLOBAL1
+ Top/Bottom Pnt Level: # of blocks=1      8kb (4% full)
+ Data Level:           # of blocks=18      144kb (72% full)
+ Total:                # of blocks=19      152kb (69% full)
+ Elapsed Time = 0.0 seconds, Completed 01/01/2199 19:01:00
+
+Global: db2_GLOBAL2
+ Top/Bottom Pnt Level: # of blocks=1      8kb (0% full)
+ Data Level:           # of blocks=1      8kb (7% full)
+ Total:                # of blocks=2      16kb (3% full)
+ Elapsed Time = 60.0 seconds, Completed 01/01/2199 19:02:00
+
+Global: db2_GLOBAL3
+ Top/Bottom Pnt Level: # of blocks=1      8kb (17% full)
+ Data Level:           # of blocks=170      1,360kb (89% full)
+ Total:                # of blocks=171      1,368kb (89% full)
+ Elapsed Time = 60.0 seconds, Completed 01/01/2199 19:03:00
+
+Global: db2_GLOBAL4
+ Top/Bottom Pnt Level: # of blocks=1      8kb (18% full)
+ Data Level:           # of blocks=110      880kb (72% full)
+ Total:                # of blocks=111      888kb (71% full)
+ Elapsed Time = 60.0 seconds, Completed 01/01/2199 00:04:00
+
+
+---Total for directory /databases/db2/---
+        57 Pointer Level blocks         456kb (4% full)
+     1,149 Data Level blocks           9192kb (85% full)
+         1 Big String blocks              8kb (49% full) # = 1
+     1,270 Total blocks               10160kb (77% full)
+   383,753 Free blocks                 2998MB
+
+Elapsed time = 240.0 seconds 01/01/2199 00:04:00
+
+No Errors were found in this directory.
+
+
+---Directory /database/db3/---
+
+Global: db3_GLOBAL1
+ Top/Bottom Pnt Level: # of blocks=1      8kb (4% full)
+ Data Level:           # of blocks=18      144kb (72% full)
+ Total:                # of blocks=19      152kb (69% full)
+ Elapsed Time = 0.0 seconds, Completed 01/01/2199 00:04:00
+
+Global: db3_GLOBAL2
+ Top/Bottom Pnt Level: # of blocks=1      8kb (4% full)
+ Data Level:           # of blocks=18      144kb (72% full)
+ Total:                # of blocks=19      152kb (69% full)
+ Elapsed Time = 30.0 seconds, Completed 01/01/2199 00:04:30
+
+Global: db3_GLOBAL3
+ Top/Bottom Pnt Level: # of blocks=1      8kb (4% full)
+ Data Level:           # of blocks=18      144kb (72% full)
+ Total:                # of blocks=19      152kb (69% full)
+ Elapsed Time = 30.0 seconds, Completed 01/01/2199 00:05:00
+
+---Total for directory /databases/db2/---
+        57 Pointer Level blocks         456kb (4% full)
+     1,149 Data Level blocks           9192kb (85% full)
+         1 Big String blocks              8kb (49% full) # = 1
+     1,270 Total blocks               10160kb (77% full)
+   383,753 Free blocks                 2998MB
+
+Elapsed time = 60.0 seconds 01/01/2199 00:05:00
+
+No Errors were found in this directory.
+
+No Errors were found.

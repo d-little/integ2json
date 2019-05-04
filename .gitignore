@@ -1,0 +1,6 @@
+.vscode
+
+# In testfiles, if you dont want something uploaded, add nogit to the filename
+#  Also, dont upload json generated json files.
+testfiles/*nogit*
+testfiles/*.json

@@ -1,10 +1,8 @@
-#!/usr/bin/env python2.7
 """ Converts an Intersystem's Cache database integrity file from text to JSON. """
 
 """ 
 To do: 
-    - Clean up the whole thing.
-    - Handle gzip files using https://docs.python.org/2/library/gzip.html
+    - Handle gzip files using https://docs.python.org/3/library/gzip.html
     - Profile summary
         - Total Size 
             - Currently we sum the total length of each global, however this 
@@ -18,100 +16,144 @@ To do:
 """
 
 import sys
-import os
+from pathlib import Path
 import argparse
 import re
 import json
 import tempfile
 import errno
 import hashlib
+import zipfile
 
-
-def main():    
-    """ The whole thing. """
-    
-    parser = argparse.ArgumentParser(
-                        description='Convert Intersystems Cache Integrity Files to JSON')
-    parser.add_argument('-s', '--singlefile', 
-                        help='Store everything in a single JSON file (if set -o is mandatory).', 
-                        action='store_true')
-    parser.add_argument('-d', '--deidentify', 
-                        help='Deidentify databases/globals/etcetc',
-                        choices=['hash', 'generic'])
-    parser.add_argument('-b', '--beautify', 
-                        help='Beautify JSON output (significantly increases size of output file)', 
-                        action='store_true', 
-                        default=False)
-    parser.add_argument('-o', '--outdir', 
-                        help='Location to put the JSON files (default is location of integ file)',
-                        metavar='directory')
-    parser.add_argument('files', 
-                        help='List of Integrity files',
-                        nargs="+")
-    args = parser.parse_args()
-    
-    """Sanity check the arguments"""
-    if args.singlefile:
-        if not args.outdir:
-            sys.exit("If singlefile flag is used, outdir must be set.  Exiting...")
-    if args.outdir:
-        if not os.path.isdir(args.outdir):
-            sys.exit("File path {} does not exist.  Exiting...".format(args.outdir))
+def main(args):
+    """ The whole dang thing. """    
+    # Path-anise our args.files:
+    listof_integ_files = list(Path(x).resolve() for x in args.files)        
     # Make sure each of the supplied integ files are 'OK'
-    listof_integ_files = args.files
+    cleaned_listof_integ_files = list(listof_integ_files) 
+    # ^^^ I do this because we remove files form the list, and removing objects from an iterobject as you iter is bad.  It's probably better to add?
     for integ_file in listof_integ_files:
-        if not os.path.isfile(integ_file):
-            sys.exit("File path {} does not exist.  Exiting...".format(integ_file))
         # Make sure that the top line matches something like: 
         #   Cache Database Integrity Check on 11/04/2018 at 19:00:01
-        with open(integ_file,'r') as fp:
-            topLine = fp.readline().strip().split()
-            # This seems like a TERRIBLE way of ensuring it's a Cache integrity file
-            if 'Cache Database Integrity Check on' != ' '.join(topLine[0:5]):
-                sys.exit("File path {} is not a Cache integrity file. Exiting...".format(integ_file))
-            fp.close()
+        # This seems like a TERRIBLE way of ensuring it's a Cache integrity file but I have only bad ideas.
+        if is_compressed(integ_file):
+            # OK. Compressed file.  
+            #   I'll need to refactor a lot of code to get this to work without reading it into memory.. to come.
+            # 1) Set up a temp dir and find an integ file we extracted
+            # 2) Remove this integ file from the integlist.  Add the one we found. 
+            print("Skipping compressed file {} because we don't currently support it.".format(integ_file))
+            cleaned_listof_integ_files.remove(integ_file)
+            continue
+
+        # Make sure integfile is an actual integrity file
+        if not is_integfile(integ_file):
+            print("Skipping file {} because it's not an integrity file.".format(integ_file))
+            #remove it from the listof_integ_files
+            cleaned_listof_integ_files.remove(integ_file)
+            continue
         
-        # Check to see if we can write to the output directory.
-        #   The easiest method I could find was literally just writing a file to the directory
-        if not args.singlefile:
-            outfile = re.sub(".txt",".json",integ_file)
-            if args.outdir:
-                outfile = os.path.join(args.outdir + os.path.basename(outfile))
-            try:
-                testfile = tempfile.TemporaryFile(dir = os.path.dirname(integ_file))
-                testfile.close()
-            except OSError as e:
-                if e.errno == errno.EACCES:  # 13
-                    sys.exit("File path {} is not writeable.  Exiting...".format(os.path.dirname(integ_file)))
-                else:
-                    sys.exit("File path {} is not writeable, for unknown reasons. Sorry.  Exiting...".format(os.path.dirname(integ_file)))
-                    
+        # Make sure outfile doesnt exist
+        if args.singlefile:
+            outfile = args.outdir / "integ2json.json"
+            if outfile.exists():
+                sys.exit("Default single-output file exists: {}".format(outfile))
+        else:
+            outfile = Path(integ_file).with_suffix('.json')
+            if outfile.exists():
+                print("Skipping file {} because its outfile exists: {}".format(integ_file, outfile))
+                #remove it from the listof_integ_files
+                cleaned_listof_integ_files.remove(integ_file)
+                continue
+        
     # integ_json is the big ol' dict where we store the JSON
     integ_json = {}
+    listof_integ_files = list(cleaned_listof_integ_files)
     for integ_file in listof_integ_files:
-        integ_json[integ_file] = {}
-        integ_json[integ_file].update(deal_with_integfile(integ_file))
+        if_str = str(integ_file.name)
+        integ_json[if_str] = {}
+        integ_json[if_str].update(deal_with_integfile(integ_file))
         if not args.singlefile:
             if args.deidentify:
                 integ_json=deidentify_json(str(args.deidentify), integ_json)
-            outfile = re.sub(".txt",".json",integ_file)
+            outfile = integ_file.with_suffix('.json')
             if args.outdir:
-                outfile = os.path.join(args.outdir,os.path.basename(outfile))
-            output_to_file(integ_json, outfile, args.beautify)
+                outfile = args.outdir / outfile.name
+
+            print(f'Converting {integ_file} to {outfile}')
+            output_to_file(integ_json=integ_json, outfile=outfile, beautify=args.beautify)
             integ_json = {} # reset integ_json back to empty
     
     if args.singlefile:
         if args.deidentify:
             integ_json = deidentify_json(str(args.deidentify), integ_json)
-        outfile=os.path.join(args.outdir, "integ2json.json")
+        outfile = args.outdir / Path("integ2json.json")
         if args.outdir:
-            outfile = os.path.join(args.outdir, os.path.basename(outfile))
+            outfile = args.outdir / outfile.name
+        print('Outputting to {}'.format(outfile))
         output_to_file(integ_json, outfile, args.beautify)
     #-------------
     return
 
+def is_integfile(integ_file:Path)->bool:
+    """ Checks to see if supplied integ_file is an Intersystems Cache integrity file.  
+    Returns True/False. """
+    try:
+        with open(integ_file,'r') as fp:
+            topLine = fp.readline().strip().split()
+            fp.close()
+    except Exception as e:
+        if e.errno == errno.ENOENT:
+            sys.exit("Integrity file does not exist: {}".format(integ_file))
+        else:
+            sys.exit("Failed to check status of integrity file: {}".format(integ_file))
+    return ' '.join(topLine[0:5]) == 'Cache Database Integrity Check on'
 
-def deidentify_json(deIdentifyMethod, integ_json):
+
+def is_compressed(file: Path) -> bool:
+    ''' Return True if file is a supported compressed file, else False '''
+    # I would like to replace this with python_magic in the future, check the magic number instead.
+    # But I would also like to use the base libraries... what to do, what to do
+    valid_suffix = [ '.zip', '.gz' ]
+    filetype = file.suffix
+    if filetype not in set(valid_suffix):
+        # Not compressed, but exists
+        return False
+    return True
+
+def decompress(compressedfile:Path, destination:Path) -> bool:
+    ''' Decompresses the given compressedfile and stores files in destination. 
+    Returns True if file successfully decompressed, else False.
+    Ideally you should be using a temporary path, but you could extract anywhere you want.'''
+    '''
+    eg: 
+      - /path/to/pbuttons.zip returns: /temporary/path/pbuttons.html
+      - c:\\mydir\\pbuttons.html.gz returns: c:\\temporary\\path\\pbuttons.html
+      - c:\\mydir\\uncompressed_pbuttons.html returns c:\\mydir\\uncompressed_pbuttons.html
+    '''
+    try:
+        if not compressedfile.exists:
+            raise ValueError("Passed compressedfile does not exist: {}", compressedfile)
+        filetype = compressedfile.suffix
+        if filetype == '.zip':
+            with open(compressedfile, "rb") as f:
+                zf = zipfile.ZipFile(f)
+                zf.extractall(destination)
+        elif filetype == '.gz':
+            import gzip ## move to top of script, here for now for testing
+            import shutil ## ^^^
+            # We dont want to uncompress the pbuttons in memory that's tooo much memory. Instead we tream it out.
+            # https://codereview.stackexchange.com/questions/156005/improving-gzip-function-for-huge-files
+            tgtpath = destination / Path(compressedfile.stem)
+            with gzip.open(compressedfile, 'rb') as f_in, open(tgtpath, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        else:
+            raise Exception('Unhandled compressed filetype.  This should not occur.')
+    except OSError as e:
+        sys.exit("Could not process compressed pButtons file because: {}".format(str(e)))
+    return True
+
+
+def deidentify_json(deIdentifyMethod:str, integ_json:{}):
     """ Takes given JSON, de-identifies any private data, such as Database and Global Names, returns JSON. """
     ####
     ## If we are deIdentifying data, there are two main ways: hash and 'tags' ?
@@ -158,7 +200,7 @@ def deidentify_json(deIdentifyMethod, integ_json):
     return integ_json
 
     
-def hash_string(string):
+def hash_string(string:str)->str:
     """ Returns a hash of the given string. """
     # Salt Generation and open source software 
     #https://stackoverflow.com/questions/1645161/salt-generation-and-open-source-software/1645190#1645190
@@ -179,7 +221,7 @@ def hash_string(string):
     return str(h.hexdigest())
 
     
-def output_to_file(integ_json, outfile, beautify):
+def output_to_file(integ_json:dict, outfile:Path, beautify:bool)->None:
     """ Outputs JSON to a file. """
     with open(outfile, 'w') as file:
         if beautify:
@@ -187,15 +229,15 @@ def output_to_file(integ_json, outfile, beautify):
             # nb: beautify significantly increases the size of the output file
         else:
             json.dump(integ_json, file)
-    print("Output JSON to " + outfile)
+    #print("Output JSON to " + outfile)
     
     
-def deal_with_integfile(integ_file):
+def deal_with_integfile(integ_file:Path)->{}:
     """ Processes entire IntegFile, return JSONs the whole thing. """
     # We use `with` to open the file because: 
     #  https://stackabuse.com/read-a-file-line-by-line-in-python/
     with open(integ_file,'r') as fp:
-        """ The first couple of lines
+        """ The first couple of lines.,.
           Sometimes:
             Cache Database Integrity Check on 11/04/2018 at 19:00:01
             System: HOSTNAME  Configuration: INSTANCENAME
@@ -212,9 +254,9 @@ def deal_with_integfile(integ_file):
         # First 3 lines, we're lazy, there's probably a better way, but this works.
         # Makes sure that those first three lines are 'valid'.
         if ' '.join(line[1][0:5]) != "Cache Database Integrity Check on":
-            sys.exit("Unusual line#1 at the top of integfile: " + integ_file)
+            sys.exit("Unusual line#1 at the top of integfile: {}".format(integ_file))
         if line[2][0] != "System:":
-            sys.exit("Unusual line#2 at the top of integfile: " + integ_file)
+            sys.exit("Unusual line#2 at the top of integfile: {}".format(integ_file))
         if line[3][0] != "Cache":
             if not line[3][0]:
                 # Sometimes line[3] doesnt exist at all, but it either not-exists or is "Cache"
@@ -385,10 +427,11 @@ def deal_with_global(fp, global_name):
             multiplier = {
               'kb': 1,
               'MB': int(1024),
-              'GB': int(1024*1024),
-              'TB': int(1024*1024*1024),
-              'PB': int(1024*1024*1024*1024)
-            }[size_symbol]
+              'GB': int(1024**2),
+              'TB': int(1024**3),
+              'PB': int(1024**4),
+              'EB': int(1024**5)
+            }[size_symbol] # If you have more than exabytes in one database seek profressional help because dang
             size_in_kb = int(re.sub('[^0-9]', '', size)) * multiplier
             global_values["Data"][field]["Size_KB"] = int(size_in_kb)
             # Turn '(80%' into 80 and make it an int.  
@@ -451,8 +494,7 @@ def deal_with_endofdatabase(fp):
                     End_Date = "UNKDATE"
                     End_Time = line.split(' ')[5]
                 else:
-                    sys.exit("Issue with the length of line in \
-                        deal_with_endofdatabase. Line:" + line)
+                    sys.exit("Issue with the length of line in deal_with_endofdatabase. Line:" + line)
                 
                 return_dict.update({
                     "Elapsed_Seconds": Elapsed_Seconds, 
@@ -547,8 +589,51 @@ def deal_with_endoffile_errors(fp):
  
     return
 
+
+def parse_args(args):
+    """ Deal with the args."""
+
+    parser = argparse.ArgumentParser(
+                        description='Convert Intersystems Cache Integrity Files to JSON')
+    parser.add_argument('-s', '--singlefile', 
+                        help='Store everything in a single JSON file (-o is mandatory).', 
+                        action='store_true')
+    parser.add_argument('-d', '--deidentify', 
+                        help='Deidentify databases/globals/etcetc',
+                        choices=['hash', 'generic'])
+    parser.add_argument('-b', '--beautify', 
+                        help='Beautify JSON output (significantly increases size of output file)', 
+                        action='store_true', 
+                        default=False)
+    parser.add_argument('-o', '--outdir', 
+                        help='Location to put the JSON files (default is location of integ file)',
+                        metavar='outdir',
+                        type=Path)
+    parser.add_argument('files', 
+                        help='List of Integrity files',
+                        nargs="+")
+    args = parser.parse_args()
     
+    """Sanity check the arguments"""
+    if args.singlefile:
+        if not args.outdir:
+            sys.exit("If singlefile flag is used, outdir must be set.  Exiting...")
+    if args.outdir:
+        if not args.outdir.is_dir():
+            sys.exit("File path {} does not exist.  Exiting...".format(args.outdir))
+        # Make sure we can write to the directory
+        try:
+            testfile = tempfile.TemporaryFile(dir = args.outdir)
+            testfile.close()
+        except OSError as e:
+            if e.errno == errno.EACCES:
+                sys.exit("Files path {} is not writeable.  Exiting...".format(args.outdir))
+            else:
+                sys.exit("File path {} is not writeable, for unknown reasons. Sorry.  Exiting...".format(args.outdir))
+    return args
+       
 if __name__ == '__main__':  
-   main()
+   args = parse_args([*sys.argv[1:]])
+   main(args)
 
    
